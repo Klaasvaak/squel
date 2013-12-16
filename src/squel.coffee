@@ -63,6 +63,8 @@ cls.DefaultQueryBuilderOptions =
   valueHandlers: []
   # Number parameters returned from toParam() as $1, $2, etc. Default is to use '?'
   numberedParameters: false
+  # Regex used for quoting
+  quotingRegex: /\b([a-z0-9\.\#\-_]+)\b/g
 
 # Global custom value handlers for all instances of builder
 cls.globalValueHandlers = []
@@ -137,6 +139,30 @@ class cls.BaseBuilder extends cls.Cloneable
         return arr[1]
     return undefined
 
+  # Quote the given value with the given quoteCharacter
+  _qouteName: (value, quoteCharacter) ->
+
+    value = value.trim()
+
+    # TODO: make regex configurable.
+    quoted = value.replace /\b([a-z0-9\.\#\-_]+)\b/g, (match) ->
+      result = ''
+
+      value = match.trim()
+
+      pos = undefined;
+      if (pos = value.indexOf('.')) isnt -1 && value isnt '*'
+        table = quoteCharacter + value.substring(0, pos) + quoteCharacter
+        column = quoteCharacter + value.substring(pos + 1) + quoteCharacter
+
+        result = table + '.' + column
+      else
+        result = quoteCharacter + value + quoteCharacter
+
+      result
+
+    quoted
+
   # Sanitize the given condition.
   _sanitizeCondition: (condition) ->
     # If it's an expression builder instance then convert it to string form.
@@ -145,6 +171,9 @@ class cls.BaseBuilder extends cls.Cloneable
 
     if "string" isnt typeof condition
       throw new Error "condition must be a string or Expression instance"
+
+    if @options.autoQuoteTableNames
+      condition = @_qouteName condition, @options.nameQuoteCharacter
 
     condition
 
@@ -160,7 +189,7 @@ class cls.BaseBuilder extends cls.Cloneable
     sanitized = @_sanitizeName item, "field name"
 
     if @options.autoQuoteFieldNames
-      "#{@options.nameQuoteCharacter}#{sanitized}#{@options.nameQuoteCharacter}"
+      sanitized = @_qouteName sanitized, @options.nameQuoteCharacter
     else
       sanitized
 
@@ -178,7 +207,7 @@ class cls.BaseBuilder extends cls.Cloneable
 
 
     if @options.autoQuoteTableNames
-      "#{@options.nameQuoteCharacter}#{sanitized}#{@options.nameQuoteCharacter}"
+      sanitized = @_qouteName sanitized, @options.nameQuoteCharacter
     else
       sanitized
 
@@ -186,7 +215,7 @@ class cls.BaseBuilder extends cls.Cloneable
     sanitized = @_sanitizeName item, "table alias"
 
     if @options.autoQuoteAliasNames
-      "#{@options.tableAliasQuoteCharacter}#{sanitized}#{@options.tableAliasQuoteCharacter}"
+      sanitized = @_qouteName sanitized, @options.tableAliasQuoteCharacter
     else
       sanitized
 
@@ -194,7 +223,7 @@ class cls.BaseBuilder extends cls.Cloneable
     sanitized = @_sanitizeName item, "field alias"
 
     if @options.autoQuoteAliasNames
-      "#{@options.fieldAliasQuoteCharacter}#{sanitized}#{@options.fieldAliasQuoteCharacter}"
+      sanitized = @_qouteName sanitized, @options.fieldAliasQuoteCharacter
     else
       sanitized
 
@@ -712,6 +741,7 @@ class cls.WhereBlock extends cls.Block
   # When the final query is constructed all the WHERE conditions are combined using the intersection (AND) operator.
   where: (condition, values...) ->
     condition = @_sanitizeCondition(condition)
+    console.log(condition)
     whereParam = { text: condition, values: [] }
 
     # substitute values into the condition

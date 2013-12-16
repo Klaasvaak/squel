@@ -59,7 +59,8 @@ OTHER DEALINGS IN THE SOFTWARE.
     fieldAliasQuoteCharacter: '"',
     usingValuePlaceholders: false,
     valueHandlers: [],
-    numberedParameters: false
+    numberedParameters: false,
+    quotingRegex: /\b([a-z0-9\.\#\-_]+)\b/g
   };
 
   cls.globalValueHandlers = [];
@@ -142,12 +143,35 @@ OTHER DEALINGS IN THE SOFTWARE.
       return void 0;
     };
 
+    BaseBuilder.prototype._qouteName = function(value, quoteCharacter) {
+      var quoted;
+      value = value.trim();
+      quoted = value.replace(/\b([a-z0-9\.\#\-_]+)\b/g, function(match) {
+        var column, pos, result, table;
+        result = '';
+        value = match.trim();
+        pos = void 0;
+        if ((pos = value.indexOf('.')) !== -1 && value !== '*') {
+          table = quoteCharacter + value.substring(0, pos) + quoteCharacter;
+          column = quoteCharacter + value.substring(pos + 1) + quoteCharacter;
+          result = table + '.' + column;
+        } else {
+          result = quoteCharacter + value + quoteCharacter;
+        }
+        return result;
+      });
+      return quoted;
+    };
+
     BaseBuilder.prototype._sanitizeCondition = function(condition) {
       if (condition instanceof cls.Expression) {
         condition = condition.toString();
       }
       if ("string" !== typeof condition) {
         throw new Error("condition must be a string or Expression instance");
+      }
+      if (this.options.autoQuoteTableNames) {
+        condition = this._qouteName(condition, this.options.nameQuoteCharacter);
       }
       return condition;
     };
@@ -163,7 +187,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       var sanitized;
       sanitized = this._sanitizeName(item, "field name");
       if (this.options.autoQuoteFieldNames) {
-        return "" + this.options.nameQuoteCharacter + sanitized + this.options.nameQuoteCharacter;
+        return sanitized = this._qouteName(sanitized, this.options.nameQuoteCharacter);
       } else {
         return sanitized;
       }
@@ -186,7 +210,7 @@ OTHER DEALINGS IN THE SOFTWARE.
         sanitized = this._sanitizeName(item, 'table name');
       }
       if (this.options.autoQuoteTableNames) {
-        return "" + this.options.nameQuoteCharacter + sanitized + this.options.nameQuoteCharacter;
+        return sanitized = this._qouteName(sanitized, this.options.nameQuoteCharacter);
       } else {
         return sanitized;
       }
@@ -196,7 +220,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       var sanitized;
       sanitized = this._sanitizeName(item, "table alias");
       if (this.options.autoQuoteAliasNames) {
-        return "" + this.options.tableAliasQuoteCharacter + sanitized + this.options.tableAliasQuoteCharacter;
+        return sanitized = this._qouteName(sanitized, this.options.tableAliasQuoteCharacter);
       } else {
         return sanitized;
       }
@@ -206,7 +230,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       var sanitized;
       sanitized = this._sanitizeName(item, "field alias");
       if (this.options.autoQuoteAliasNames) {
-        return "" + this.options.fieldAliasQuoteCharacter + sanitized + this.options.fieldAliasQuoteCharacter;
+        return sanitized = this._qouteName(sanitized, this.options.fieldAliasQuoteCharacter);
       } else {
         return sanitized;
       }
@@ -881,6 +905,7 @@ OTHER DEALINGS IN THE SOFTWARE.
       var condition, inValues, item, value, values, whereParam, _i, _j, _len, _len1;
       condition = arguments[0], values = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
       condition = this._sanitizeCondition(condition);
+      console.log(condition);
       whereParam = {
         text: condition,
         values: []
